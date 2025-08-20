@@ -12,7 +12,7 @@ import numpy
 
 
 fields = [
-    FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=False),
+    FieldSchema(name="id", dtype=DataType.VARCHAR, max_length=100, is_primary=True, auto_id=False),
     FieldSchema(name="json1", dtype=DataType.JSON, nullable=True),
     FieldSchema(name="embeddings", dtype=DataType.FLOAT_VECTOR, dim=128)
 ]
@@ -36,7 +36,7 @@ def init_collection():
       varchar_array = [str(_id).zfill(100) for _ in range(array_len)]
       embedding = [float(_id) * random.random() for _ in range(128)]
       #values.append({"id": _id, "json1": {"float": float_array, "varchar": varchar_array}, "embeddings": embedding})
-      values.append({"id": _id, "json1": "", "embeddings": embedding})
+      values.append({"id": str(_id).zfill(100), "json1": "", "embeddings": embedding})
     #print(values)
     insert_result = hello_milvus.insert(values)  
     index +=1
@@ -172,9 +172,9 @@ def query():
   hello_milvus = Collection("hello_milvus", schema)
   hello_milvus.load()
   print("load done")
-  for _ in range(10000):
-    res = hello_milvus.query(expr='json_contains_any(json1["float"], [100.0])')
-    print(res)
+  for _ in range(1):
+
+    res = hello_milvus.query(expr='json1["float"] == "0.2" or json1["float"] == "0.3" or json1["float"] == "0.4" ', output_fields=['json1'])
 
 if __name__ == "__main__":
   init_collection()  

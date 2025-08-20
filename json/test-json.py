@@ -136,7 +136,7 @@ def test2(init=False):
         time.sleep(1)
 
         print("expr: json['key0'] == '1'")
-        res=client.query(collection_name=collection_name, filter="json['key0'] == '1'", output_fields=['count(*)'], filter_params=use_stats_param)
+        res=client.query(collection_name=collection_name, filter="json['key0'] == '1'", output_fields=['count(*)'], filtersearch_sorted_pk_params=use_stats_param)
         print(res)
         res=client.query(collection_name=collection_name, filter="json['key0'] == '1'", output_fields=['count(*)'], filter_params=not_use_stats_param)
         print(res)
@@ -337,6 +337,6 @@ if __name__ == "__main__":
     #test1(True)
     #test2(True)
     #test3(True)
-    test4(True)
-    #test5(True)
+    #test4(True)
+    test5(True)
     #test6(True)
