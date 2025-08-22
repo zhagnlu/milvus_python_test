@@ -25,7 +25,8 @@ def run_benchmark(client: MilvusClient,
                   query_filter: str,
                   duration_seconds: float,
                   concurrency: int,
-                  use_stats: bool = False):
+                  use_stats: bool = False,
+                  print_result: bool = False):
     end_time = time.perf_counter() + duration_seconds
     latencies_ms_all = []
     latencies_lock = threading.Lock()
@@ -40,12 +41,14 @@ def run_benchmark(client: MilvusClient,
         while time.perf_counter() < end_time:
             t0 = time.perf_counter()
             try:
-                _ = client.query(
+                res = client.query(
                     collection_name=collection_name,
                     filter=query_filter,
                     output_fields=["count(*)"],
                     filter_params=filter_params
                 )
+                if print_result:
+                    logger.info(f"query res: {res}")
                 t1 = time.perf_counter()
                 local_latencies.append((t1 - t0) * 1000.0)
                 with counter_lock:
@@ -104,6 +107,14 @@ def main():
         choices=['true', 'false'],
         help="set expr_use_json_stats (true/false). Bare --use-stats equals true. Default: false",
     )
+    parser.add_argument(
+        "--print-res",
+        nargs='?',
+        const='true',
+        default='false',
+        choices=['true', 'false'],
+        help="print each query result (true/false). Bare equals true. Default: false",
+    )
     args = parser.parse_args()
     if args.filter is None:
         logger.error("filter is required")
@@ -141,13 +152,16 @@ def main():
 
     # Warm-up one query
     try:
-        _ = client.query(collection_name=args.collection, filter=args.filter, output_fields=["count(*)"])
+        warmup_res = client.query(collection_name=args.collection, filter=args.filter, output_fields=["count(*)"])
+        if str(args.print_res).lower() == 'true':
+            logger.info(f"warm-up res: {warmup_res}")
     except Exception as e:
         logger.error(f"Warm-up query failed: {e}")
         return
 
     use_stats_bool = str(args.use_stats).lower() == 'true'
-    logger.info(f"running benchmark: duration={args.duration}s, concurrency={args.concurrency}, use_stats={use_stats_bool}")
+    print_res_bool = str(args.print_res).lower() == 'true'
+    logger.info(f"running benchmark: duration={args.duration}s, concurrency={args.concurrency}, use_stats={use_stats_bool}, print_res={print_res_bool}")
     result = run_benchmark(
         client=client,
         collection_name=args.collection,
@@ -155,6 +169,7 @@ def main():
         duration_seconds=args.duration,
         concurrency=args.concurrency,
         use_stats=use_stats_bool,
+        print_result=print_res_bool,
     )
 
     logger.info("Benchmark result:")

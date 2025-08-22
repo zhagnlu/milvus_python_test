@@ -50,7 +50,10 @@ def insert_collection_base(collection_name, nb_single, jsons):
 
 
 def insert_collection_streaming(collection_name, file_path, batch_size, pk_start, max_rows=None, progress_every=10000):
+    """Insert rows from a JSONL file. Returns (inserted_total, json_len_total, json_count)."""
     inserted_total = 0
+    json_len_total = 0
+    json_count = 0
     next_id = pk_start
     batch = []
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -76,6 +79,8 @@ def insert_collection_streaming(collection_name, file_path, batch_size, pk_start
             }
             batch.append(row)
             next_id += 1
+            json_len_total += len(s)
+            json_count += 1
 
             if len(batch) >= batch_size:
                 client.insert(collection_name=collection_name, data=batch)
@@ -89,7 +94,7 @@ def insert_collection_streaming(collection_name, file_path, batch_size, pk_start
             client.insert(collection_name=collection_name, data=batch)
             inserted_total += len(batch)
 
-    return inserted_total
+    return inserted_total, json_len_total, json_count
 
 
 def insert_multiple_files(collection_name, file_pattern, batch_size, pk_start, max_rows=None, progress_every=10000):
@@ -102,6 +107,8 @@ def insert_multiple_files(collection_name, file_pattern, batch_size, pk_start, m
     logger.info(f"Found {len(files)} files: {files}")
     
     inserted_total = 0
+    json_len_total = 0
+    json_count = 0
     next_id = pk_start
     
     for file_path in files:
@@ -110,7 +117,7 @@ def insert_multiple_files(collection_name, file_pattern, batch_size, pk_start, m
             continue
             
         logger.info(f"Processing file: {file_path}")
-        file_inserted = insert_collection_streaming(
+        file_inserted, file_len_total, file_count = insert_collection_streaming(
             collection_name=collection_name,
             file_path=file_path,
             batch_size=batch_size,
@@ -119,13 +126,15 @@ def insert_multiple_files(collection_name, file_pattern, batch_size, pk_start, m
             progress_every=progress_every,
         )
         inserted_total += file_inserted
+        json_len_total += file_len_total
+        json_count += file_count
         next_id += file_inserted
         
         if max_rows is not None and inserted_total >= max_rows:
             logger.info(f"Reached max rows limit: {max_rows}")
             break
     
-    return inserted_total
+    return inserted_total, json_len_total, json_count
 
 
 def connect_milvus(uri=None, user=None, password=None, token=None):
@@ -271,7 +280,7 @@ def main():
 
         if args.file:
             # 单文件模式
-            inserted = insert_collection_streaming(
+            inserted, json_len_total, json_count = insert_collection_streaming(
                 collection_name=args.collection,
                 file_path=args.file,
                 batch_size=args.batch_size,
@@ -281,7 +290,7 @@ def main():
             )
         else:
             # 多文件模式
-            inserted = insert_multiple_files(
+            inserted, json_len_total, json_count = insert_multiple_files(
                 collection_name=args.collection,
                 file_pattern=args.files,
                 batch_size=args.batch_size,
@@ -291,6 +300,11 @@ def main():
             )
 
         logger.info(f"Inserted total rows: {inserted}")
+        if json_count > 0:
+            avg_json_len = json_len_total / float(json_count)
+            logger.info(f"Average JSON length (chars) of inserted rows: {avg_json_len:.2f}")
+        else:
+            logger.info("No JSON rows inserted; average JSON length unavailable")
 
         client.flush(collection_name=args.collection)
         client.load_collection(collection_name=args.collection)
